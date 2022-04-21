@@ -1,0 +1,83 @@
+version: '3'
+services:
+
+    app:
+        build:
+            args:
+                user: alex
+                uid: 1000
+            context: .
+            dockerfile: ./docker/php/Dockerfile
+        image: docker_php7.2_mysql5.7_env/php
+        container_name: app
+        restart: unless-stopped
+        tty: true
+        environment:
+            SERVICE_NAME: app
+            SERVICE_TAGS: dev
+        working_dir: /var/www
+        volumes:
+            - ./app:/var/www:delegated
+            - ./docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+            - ./docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini
+        networks:
+            - app-network
+
+    webserver:
+        image: nginx:alpine
+        container_name: webserver
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./app:/var/www
+            - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+        networks:
+            - app-network
+
+    db:
+        image: mysql:5.7.37
+        container_name: db
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "3306:3306"
+        environment:
+            MYSQL_DATABASE: db_name
+            MYSQL_USER: db_user
+            MYSQL_PASSWORD: your_db_password
+            MYSQL_ROOT_PASSWORD: your_mysql_root_password
+            SERVICE_TAGS: dev
+            SERVICE_NAME: mysql
+        volumes:
+            - ./db/mysql_db:/var/lib/mysql/
+            - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+        networks:
+            - app-network
+
+    redis:
+        image: redis:7.0-rc2
+        container_name: ip-geo-locator-redis
+        volumes:
+            - ./data/storage/redis/data:/data
+        ports:
+            - '6380:6380'
+        networks:
+            - app-network
+
+    redisinsight:
+        image: redislabs/redisinsight:1.11.1
+        container_name: ip-geo-locator-redisinsight
+        ports:
+            - '8001:8001'
+        depends_on:
+            - redis
+        networks:
+            - app-network
+
+
+networks:
+    app-network:
+        driver: bridge
